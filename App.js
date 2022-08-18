@@ -7,64 +7,52 @@ import { GeofencingEventType } from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 export default function App() {
-  const [location, setLocation] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
-
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied");
-        return;
+      console.log("permisos foreground ", status);
+      if (status == "granted") {
+        let statusBack = await Location.requestBackgroundPermissionsAsync();
+        console.log("status back ", statusBack.status);
+        if (statusBack.status == "granted") {
+          //Localizacion por primera vez
+          let location = await Location.getCurrentPositionAsync({});
+          console.log("location ", location);
+          //Live location
+          await Location.startLocationUpdatesAsync("real-time-location", {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 3000,
+            foregroundService: {
+              notificationTitle: "BackgroundLocation Is On",
+              notificationBody: "We are tracking your location",
+              notificationColor: "#ffce52",
+            },
+          });
+          await Location.startGeofencingAsync("geofencing", regions, {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 3000,
+            foregroundService: {
+              notificationTitle: "BackgroundLocation Is On",
+              notificationBody: "We are tracking your location",
+              notificationColor: "#ffce52",
+            },
+          });
+        } else {
+          console.log("alto ahi esponja, dios te agarre confesado");
+        }
       }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
-      console.log("location ", location);
     })();
   }, []);
 
-  let text = "Waiting..";
-  if (errorMsg) {
-    text = errorMsg;
-  } else if (location) {
-    text = JSON.stringify(location);
-  }
-
-  //Obtener ubicacion
-  async function currentLocation() {
-    const newLocation = await Location.getCurrentPositionAsync({});
-    return newLocation;
-  }
-  console.log("location 2", currentLocation());
-
   //Geofencing
-  const regions = {
-    identifier: "Parque Arauco",
-    latitude: -33.40223816427574,
-    longitude: -70.57804555413635,
-    radius: 300,
-  };
-  const geofencing = "geofencing-parque-arauco";
-
-  const geofencingParqueArauco = async () => {
-    await Location.startGeofencingAsync(geofencing, regions);
-  };
-
-  TaskManager.defineTask(
-    geofencing,
-    ({ data: { eventType, region }, error }) => {
-      if (error) {
-        console.log(error);
-        return;
-      }
-      if (eventType === GeofencingEventType.Enter) {
-        console.log("You've entered region:", region);
-      } else if (eventType === GeofencingEventType.Exit) {
-        console.log("You've left region:", region);
-      }
-    }
-  );
+  const regions = [
+    {
+      identifier: "casa gabriel",
+      latitude: -33.4568657,
+      longitude: -70.5739362,
+      radius: 10,
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -77,6 +65,7 @@ export default function App() {
           latitudeDelta: 0.0322,
           longitudeDelta: 0.0221,
         }}
+        showsUserLocation={true}
       >
         <Marker
           coordinate={{
@@ -90,15 +79,41 @@ export default function App() {
         </Marker>
         <Circle
           center={{
-            latitude: -33.402237150937154,
-            longitude: -70.57834420576039,
+            latitude: -33.4568657,
+            longitude: -70.5739362,
           }}
-          radius={300}
+          radius={10}
         />
       </MapView>
     </View>
   );
 }
+
+TaskManager.defineTask(
+  "real-time-location",
+  ({ data: { locations }, error }) => {
+    if (error) {
+      console.log("error task manager ", error);
+      return;
+    }
+    console.log("Received new locations", locations);
+  }
+);
+
+TaskManager.defineTask(
+  "geofencing",
+  ({ data: { eventType, region }, error }) => {
+    if (error) {
+      console.log(error);
+      return;
+    }
+    if (eventType === GeofencingEventType.Enter) {
+      console.log("You've entered region:", region);
+    } else if (eventType === GeofencingEventType.Exit) {
+      console.log("You've left region:", region);
+    }
+  }
+);
 
 const styles = StyleSheet.create({
   container: {
